@@ -1,56 +1,61 @@
-# How to start the bot (when you turn your computer on)
+# How your bot works now
 
-## The short version: you don't have to do anything.
+## You don't have to start anything — ever.
 
-The bot starts itself. As long as your computer is **on** and you're **logged in**,
-it automatically checks Dick Capital every 30 minutes and posts any new picks to
-your Discord. You do **not** need to open Cursor, click a button, or run a command
-for this to happen.
+Your bot **runs in the cloud**, not on your computer. There's nothing to turn on,
+no app to open, no command to type. It works 24/7 whether your laptop is on, off,
+asleep, or closed.
 
-So the real "startup steps" are just:
+Here's the whole thing in one line:
 
-1. Turn on your computer.
-2. Log in like you normally do.
-3. That's it. Within 30 minutes the bot runs on its own.
+> **Dick posts → you get the email → the bot reads it → it posts the pick to your
+> Discord `#alerts`, about 1–2 minutes later.**
 
-## The only thing that stops it
+That's it. You can ignore it and it just works.
 
-The bot can't run while your computer is **off or asleep**. The moment you turn it
-back on, it picks up again automatically. And it remembers everything it has
-already posted, so:
+## What's doing the work (so you know)
 
-- You won't get duplicate alerts.
-- It won't skip the picks it missed while the computer was off — it catches them
-  on the next run.
+Three free helpers, all running on their own:
+
+1. **A Gmail watcher** (a tiny script on your `nsabharwal2006@gmail.com` account)
+   checks every minute for a new email from Dick Capital.
+2. When it sees one, it **wakes up the bot on GitHub** (a free service).
+3. The bot **reads the pick from the email**, looks up the price and recent news,
+   and **posts it to Discord.**
+
+Your old laptop bot is **switched off** now — you don't need it, and leaving it on
+would have caused duplicate alerts.
+
+## How to check it's working
+
+Easiest: **just look at your Discord `#alerts` channel.** If picks are showing up,
+it's working.
+
+If you ever want to look under the hood:
+
+- **GitHub:** go to your repo → **Actions** tab. Each run is a line — a green ✓
+  means it ran fine. (Repo: `github.com/NeelSabharwal/dick-capital-bot`)
+- **Gmail watcher:** go to **script.google.com**, open the project, click the
+  **clock icon** (Triggers) to confirm it's still scheduled, or **Executions** to
+  see its recent runs.
+
+## What it costs
+
+Almost nothing. The Gmail watcher, the GitHub runner, the price/news, and the
+research links are all **free**. The only paid part is the tiny **Claude** step
+that reads each pick (~1–3¢ per pick) — well under **$1–2 a month**.
+
+## Good to know
+
+- **It covers Dick's chat trade updates** (the "Bought $AMKR," "Adding ENPH" posts)
+  — your main signal. His occasional long essay write-ups aren't fully covered;
+  ask Claude to help if you ever want those too.
+- **Want it changed?** (different alerts, formatting, filters, etc.) Just open this
+  project in Cursor and tell Claude what you want.
+- **If alerts ever stop:** check that the email still arrives in
+  `nsabharwal2006@gmail.com`, then check the GitHub **Actions** tab for a red ✗.
+  Or just ask Claude to take a look.
 
 ---
 
-## Optional: make it check RIGHT NOW (instead of waiting up to 30 min)
-
-If you just turned your computer on after it was off for a while and you want it to
-catch up immediately:
-
-1. Open this project in Cursor.
-2. In the top menu, click **Terminal** → **New Terminal**. A box opens at the bottom.
-3. Click inside that box, type this line exactly, and press Enter:
-
-   ```
-   .\.venv\Scripts\python.exe bot.py
-   ```
-
-4. Wait about 15 seconds. When you get your normal prompt back, it's finished.
-   Any new picks will now be in your Discord.
-
-## Optional: check that it's actually working
-
-Two easy ways, pick either:
-
-- **Look at Discord** — if there were new picks, they'll be in your `#alerts` channel.
-- **Look at the log** — open the file `bot.log` in this folder and scroll to the very
-  bottom. If the newest lines say `=== bot run start ===` and `=== bot run end ===`
-  with today's date, it ran fine.
-
----
-
-*That's the whole thing. Turn the computer on, log in, and the bot takes care of
-the rest.*
+*Set it and forget it. Turn your computer off and the picks still come in.*
