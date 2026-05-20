@@ -1,72 +1,67 @@
-/**
- * Dick Capital -> Discord: Gmail watcher (Google Apps Script)
- * ----------------------------------------------------------------------
- * Lives on nsabharwal2006@gmail.com and runs every minute. When a new
- * "New thread from Dick Capital" email arrives from dickcapital@substack.com,
- * it pokes the GitHub Actions bot with the email's text. The bot then
- * extracts the pick and posts it to Discord (~2-4 min after Dick posts).
- *
- * ONE-TIME SETUP:
- *   1. Create a GitHub fine-grained token:
- *        github.com -> Settings -> Developer settings ->
- *        Fine-grained tokens -> Generate new token
- *        - Repository access: Only select repositories -> dick-capital-bot
- *        - Permissions -> Repository permissions -> Contents: Read and write
- *      Copy the token (starts with "github_pat_...").
- *   2. script.google.com (signed in as nsabharwal2006@gmail.com)
- *        -> New project -> delete the sample -> paste THIS whole file -> Save.
- *   3. Gear (Project Settings) -> Script properties -> Add script property:
- *        Property: GITHUB_TOKEN     Value: <the token from step 1>
- *   4. Pick "checkDickCapital" in the top toolbar -> Run -> approve the
- *      permission prompts (Gmail access + connect to an external service).
- *   5. Clock icon (Triggers) -> Add trigger:
- *        function = checkDickCapital, source = Time-driven,
- *        type = Minutes timer, interval = Every minute -> Save.
- */
+// Dick Capital -> Discord: Gmail watcher (Apps Script).
+// Runs every minute on nsabharwal2006@gmail.com. On a new
+// email from Dick Capital, it pokes the GitHub bot, which
+// reads the pick from the email and posts it to Discord.
+// Setup steps are in the chat with Claude.
 
-const GITHUB_OWNER = 'NeelSabharwal';
-const GITHUB_REPO  = 'dick-capital-bot';
-const SENDER       = 'dickcapital@substack.com';
-const DONE_LABEL   = 'DC-Bot-Done';
+var OWNER = 'NeelSabharwal';
+var REPO = 'dick-capital-bot';
+var SENDER = 'dickcapital@substack.com';
+var LBL = 'DC-Bot-Done';
+var CHAT = 'https://substack.com/chat/6321441';
 
 function checkDickCapital() {
-  const token = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
-  if (!token) throw new Error('Missing GITHUB_TOKEN script property (setup step 3).');
-
-  const label = GmailApp.getUserLabelByName(DONE_LABEL) || GmailApp.createLabel(DONE_LABEL);
-
-  // New mail from Dick Capital in the last 2 days we haven't handled yet.
-  const threads = GmailApp.search('from:' + SENDER + ' newer_than:2d -label:' + DONE_LABEL, 0, 20);
-
-  threads.forEach(function (thread) {
-    thread.getMessages().forEach(function (msg) {
-      if (msg.getFrom().indexOf(SENDER) === -1) return;
-      poke(token, {
-        body: msg.getPlainBody().slice(0, 6000),
-        chat_url: findChatUrl(msg.getBody()) || 'https://substack.com/chat/6321441',
-        date: msg.getDate().toISOString(),
-        subject: msg.getSubject()
-      });
-    });
-    thread.addLabel(label); // mark handled so we never double-post
-  });
-}
-
-function poke(token, clientPayload) {
-  const resp = UrlFetchApp.fetch(
-    'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/dispatches',
-    {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
-      payload: JSON.stringify({ event_type: 'new-substack-email', client_payload: clientPayload }),
-      muteHttpExceptions: true
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('GITHUB_TOKEN');
+  if (!token) {
+    throw new Error('Set GITHUB_TOKEN first');
+  }
+  var label = GmailApp.getUserLabelByName(LBL);
+  if (!label) {
+    label = GmailApp.createLabel(LBL);
+  }
+  var q = 'from:' + SENDER + ' newer_than:2d';
+  q = q + ' -label:' + LBL;
+  var threads = GmailApp.search(q, 0, 20);
+  for (var i = 0; i < threads.length; i++) {
+    var msgs = threads[i].getMessages();
+    for (var j = 0; j < msgs.length; j++) {
+      handle(msgs[j], token);
     }
-  );
-  Logger.log('GitHub dispatch -> HTTP ' + resp.getResponseCode()); // 204 = success
+    threads[i].addLabel(label);
+  }
 }
 
-function findChatUrl(html) {
-  const m = html.match(/https?:\/\/substack\.com\/chat\/\d+\/post\/[a-z0-9-]+/i);
-  return m ? m[0] : null;
+function handle(msg, token) {
+  if (msg.getFrom().indexOf(SENDER) < 0) {
+    return;
+  }
+  var data = {
+    body: msg.getPlainBody().slice(0, 6000),
+    chat_url: CHAT,
+    date: msg.getDate().toISOString(),
+    subject: msg.getSubject()
+  };
+  poke(token, data);
+}
+
+function poke(token, data) {
+  var base = 'https://api.github.com/repos/';
+  var api = base + OWNER + '/' + REPO + '/dispatches';
+  var body = {
+    event_type: 'new-substack-email',
+    client_payload: data
+  };
+  var opts = {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json'
+    },
+    payload: JSON.stringify(body)
+  };
+  var resp = UrlFetchApp.fetch(api, opts);
+  Logger.log('HTTP ' + resp.getResponseCode());
 }
