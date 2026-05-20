@@ -39,7 +39,18 @@ AUTHOR_USER_ID = 394376039  # User ID of the author whose chat messages we want 
 
 STATE_FILE = Path(__file__).parent / "state.json"
 CHAT_STATE_FILE = Path(__file__).parent / "chat_state.json"
-UA = "Mozilla/5.0 (compatible; DickCapBot/0.1)"
+# Look like a normal browser. Substack is behind Cloudflare, which 403s
+# obvious bot User-Agents coming from datacenter IPs (e.g. GitHub Actions).
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+BROWSER_HEADERS = {
+    "User-Agent": UA,
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://substack.com/",
+}
 
 claude = Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -58,7 +69,7 @@ def fetch_recent_posts(limit: int = 10) -> list[dict[str, Any]]:
     url = f"https://{PUBLICATION_HOST}/api/v1/posts?limit={limit}"
     r = httpx.get(
         url,
-        headers={"Cookie": SUBSTACK_COOKIE, "User-Agent": UA},
+        headers={**BROWSER_HEADERS, "Cookie": SUBSTACK_COOKIE},
         timeout=30,
     )
     r.raise_for_status()
@@ -326,7 +337,7 @@ def fetch_chat_threads(limit: int = 20) -> list[dict[str, Any]]:
     url = f"https://substack.com/api/v1/community/publications/{PUBLICATION_ID}/posts"
     r = httpx.get(
         url,
-        headers={"Cookie": SUBSTACK_COOKIE, "User-Agent": UA, "Accept": "*/*"},
+        headers={**BROWSER_HEADERS, "Cookie": SUBSTACK_COOKIE},
         timeout=30,
     )
     r.raise_for_status()
