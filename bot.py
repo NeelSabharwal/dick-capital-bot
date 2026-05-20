@@ -1,7 +1,15 @@
-"""Dick Capital Substack -> Discord bot (Phase 1: posts).
+"""Dick Capital Substack -> Discord stock-pick bot.
 
-Polls Substack for new paid posts, extracts actionable stock picks with
-Claude, and posts them to a Discord channel.
+Two modes (see README.md):
+  python bot.py --from-email   Live cloud mode: read the pick from a Substack
+                               notification email (passed in via env vars) and
+                               post it to Discord. No Substack call.
+  python bot.py                Legacy scrape mode: poll Substack's JSON API for
+                               new posts + chat threads. Only works from a home
+                               IP (cloud datacenter IPs get a Cloudflare 403).
+
+In both modes Claude extracts {ticker, action, sizing, thesis, ...}, yfinance
+adds price + recent news, and the result is posted as a Discord embed.
 """
 from __future__ import annotations
 
