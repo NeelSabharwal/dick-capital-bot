@@ -65,3 +65,61 @@ function poke(token, data) {
   var resp = UrlFetchApp.fetch(api, opts);
   Logger.log('HTTP ' + resp.getResponseCode());
 }
+
+// --- Nudge when Dick replies inside one of his threads ---
+var DICK_ID = 394376039;
+
+function checkDickReplies() {
+  var p = PropertiesService.getScriptProperties();
+  var ck = p.getProperty('SUBSTACK_COOKIE');
+  var tok = p.getProperty('DISCORD_BOT_TOKEN');
+  var chan = p.getProperty('DISCORD_CHANNEL_ID');
+  var u = 'https://substack.com/api/v1/community/';
+  u = u + 'publications/6321441/posts';
+  var r = UrlFetchApp.fetch(u, {
+    muteHttpExceptions: true,
+    headers: { Cookie: ck }
+  });
+  if (r.getResponseCode() != 200) {
+    Logger.log('Substack HTTP ' + r.getResponseCode());
+    return;
+  }
+  var threads = (JSON.parse(r.getContentText()).threads) || [];
+  var primed = p.getProperty('PRIMED_REPLIES');
+  for (var i = 0; i < threads.length; i++) {
+    var cp = threads[i].communityPost;
+    if (!cp || cp.user_id !== DICK_ID) continue;
+    var rc = cp.recent_commenters || [];
+    if (rc.length === 0 || rc[0].id !== DICK_ID) continue;
+    var ts = cp.most_recent_comment_created_at;
+    if (!ts) ts = cp.max_comment_created_at;
+    var key = 'NUDGED_' + cp.id;
+    if (!primed) { p.setProperty(key, ts); continue; }
+    if (p.getProperty(key) === ts) continue;
+    nudge(tok, chan, cp);
+    p.setProperty(key, ts);
+  }
+  if (!primed) p.setProperty('PRIMED_REPLIES', '1');
+}
+
+function nudge(tok, chan, cp) {
+  var t = tickerOf(cp.body);
+  var link = 'https://substack.com/chat/6321441/post/' + cp.id;
+  var msg = '💬 Dick replied in the ' + t + ' thread → ' + link;
+  var url = 'https://discord.com/api/v10/channels/';
+  url = url + chan + '/messages';
+  UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: { Authorization: 'Bot ' + tok },
+    payload: JSON.stringify({ content: msg })
+  });
+}
+
+function tickerOf(body) {
+  var m = (body || '').match(/\$[A-Za-z]{1,6}/);
+  if (m) return m[0];
+  var s = (body || '').slice(0, 30);
+  return s ? '"' + s + '"' : 'a';
+}
