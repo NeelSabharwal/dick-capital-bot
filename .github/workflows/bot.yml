@@ -40,14 +40,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run the bot
+      - name: Run the bot (email mode)
         env:
-          SUBSTACK_COOKIE: ${{ secrets.SUBSTACK_COOKIE }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUBSTACK_PUBLICATION_HOST: dickcapital.substack.com
-        run: python bot.py
+          # Email contents handed in by the Gmail watcher via repository_dispatch:
+          EMAIL_BODY: ${{ github.event.client_payload.body }}
+          EMAIL_CHAT_URL: ${{ github.event.client_payload.chat_url }}
+          EMAIL_DATE: ${{ github.event.client_payload.date }}
+        run: python bot.py --from-email
 
       - name: Remember which picks were already posted
         run: |

@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("dickcap")
 
-SUBSTACK_COOKIE = os.environ["SUBSTACK_COOKIE"]
+SUBSTACK_COOKIE = os.environ.get("SUBSTACK_COOKIE", "")  # not needed in email mode
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_CHANNEL_ID = os.environ["DISCORD_CHANNEL_ID"]
@@ -402,10 +403,11 @@ def extract_chat_picks(post: dict[str, Any]) -> dict[str, Any]:
     return json.loads(raw)
 
 
-def post_chat_to_discord(post: dict[str, Any], analysis: dict[str, Any]) -> None:
+def post_chat_to_discord(post: dict[str, Any], analysis: dict[str, Any], chat_url: str | None = None) -> None:
     if not analysis.get("picks"):
         return  # skip silent — chat is noisy, only post actual picks
-    chat_url = f"https://substack.com/chat/{PUBLICATION_ID}/post/{post['id']}"
+    if chat_url is None:
+        chat_url = f"https://substack.com/chat/{PUBLICATION_ID}/post/{post['id']}"
     ts = post["created_at"]
 
     for pick in analysis["picks"]:
@@ -477,6 +479,34 @@ def process_chat() -> None:
 
 
 # ============================================================================
+# EMAIL MODE (cloud) — extract the pick from the notification email itself,
+# so we never have to call Substack (which blocks datacenter IPs).
+# ============================================================================
+
+def process_email() -> None:
+    """The Substack notification email already contains Dick's message. Extract
+    the pick straight from it (passed in via env vars from the Gmail watcher)
+    and post to Discord. Never touches Substack."""
+    body = os.environ.get("EMAIL_BODY", "").strip()
+    if not body:
+        log.error("email mode: EMAIL_BODY is empty — nothing to process.")
+        return
+    chat_url = os.environ.get("EMAIL_CHAT_URL", "").strip() or f"https://substack.com/chat/{PUBLICATION_ID}"
+    created_at = os.environ.get("EMAIL_DATE", "").strip() or datetime.now(timezone.utc).isoformat()
+    log.info(f"email mode: processing {len(body)} chars; chat_url={chat_url}")
+
+    post = {"body": body, "created_at": created_at, "id": "email"}
+    analysis = extract_chat_picks(post)
+    tickers = [p.get("ticker") for p in analysis.get("picks", [])]
+    log.info(f"email mode: extracted picks: {tickers}")
+    if not analysis.get("picks"):
+        log.info("email mode: no actionable picks in this email — skipping.")
+        return
+    post_chat_to_discord(post, analysis, chat_url=chat_url)
+    log.info(f"email mode: posted {len(analysis['picks'])} pick(s) to Discord.")
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -526,4 +556,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if "--from-email" in sys.argv:
+        log.info("=== email-mode run start ===")
+        try:
+            process_email()
+        except Exception as e:
+            log.exception(f"email pipeline failed: {e}")
+        log.info("=== email-mode run end ===")
+        raise SystemExit(0)
+    raise SystemExit(main())
