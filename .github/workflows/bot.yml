@@ -1,15 +1,13 @@
 name: Dick Capital Bot
 
 # WHEN this bot runs:
+#
+# NOTE: scheduled polling was REMOVED — Substack/Cloudflare returns 403 to
+# GitHub's datacenter IPs, so polling Substack from here can never work.
+# The bot is now driven by the Gmail "doorbell" (email contains the pick).
 on:
-  schedule:
-    # Every 5 minutes — the polling "safety net" so nothing is ever missed.
-    # (Public repo = unlimited free minutes. If you switch to a private repo,
-    #  change this to "*/30 * * * *" to stay inside the free allowance.)
-    - cron: "*/5 * * * *"
-
   # The instant "doorbell": the Gmail watcher fires this the moment a new
-  # Dick Capital email arrives, so a pick can post within ~2-4 minutes.
+  # Dick Capital email arrives, passing the email contents in the payload.
   repository_dispatch:
     types: [new-substack-email]
 
