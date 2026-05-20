@@ -1,0 +1,64 @@
+name: Dick Capital Bot
+
+# WHEN this bot runs:
+on:
+  schedule:
+    # Every 5 minutes — the polling "safety net" so nothing is ever missed.
+    # (Public repo = unlimited free minutes. If you switch to a private repo,
+    #  change this to "*/30 * * * *" to stay inside the free allowance.)
+    - cron: "*/5 * * * *"
+
+  # The instant "doorbell": the Gmail watcher fires this the moment a new
+  # Dick Capital email arrives, so a pick can post within ~2-4 minutes.
+  repository_dispatch:
+    types: [new-substack-email]
+
+  # A manual "Run" button in the GitHub Actions tab, for testing.
+  workflow_dispatch: {}
+
+# Let the workflow save the updated "seen" files back into the repo.
+permissions:
+  contents: write
+
+# Never let two runs overlap (a scheduled run + an email-triggered run could
+# collide on the state files). Runs queue and go one at a time.
+concurrency:
+  group: dick-capital-bot
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the bot
+        env:
+          SUBSTACK_COOKIE: ${{ secrets.SUBSTACK_COOKIE }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUBSTACK_PUBLICATION_HOST: dickcapital.substack.com
+        run: python bot.py
+
+      - name: Remember which picks were already posted
+        run: |
+          git config user.name "dick-capital-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json chat_state.json
+          if git diff --cached --quiet; then
+            echo "No new state to save."
+          else
+            git commit -m "Update seen-state [skip ci]"
+            git push
+          fi
